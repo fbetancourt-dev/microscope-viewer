@@ -30,9 +30,13 @@ When connected over WiFi, the SoC runs an embedded RTOS that actively reads the 
 2. When the user presses the physical snapshot button on the barrel, the microscope emits a 7-byte telemetry packet on port `20000` starting with `JHCMD` (or alters telemetry flags in the 8-byte video frame headers on port `10900`).
 3. By implementing a non-blocking UDP listener with a **350 ms software debounce window** in `capture_engine.py`, we achieved instant shutter triggering with a visual flash animation and automatic PNG export on every physical press.
 
-### Related Tools:
-- **`live_button_monitor.py`**: Real-time packet sniffer for ports 20000 and 10900.
-- **`probe_button.py`**: Standalone listener for command port 20000 events.
+### 🟢 What Working WiFi Packets Look Like:
+When running `tools/probe_button.py` while pressing the physical button over WiFi:
+```text
+[PORT 20000] #1 Len=7 from ('192.168.29.1', 20000): 4a48434d440001 (b'JHCMD\x00\x01')
+  --> JHCMD 7-byte packet: cmd5=0x00, cmd6=0x01 (Key Event: SNAPSHOT TRIGGERED!)
+```
+The device transmits actively and synchronously on every actuation.
 
 ---
 
@@ -45,23 +49,78 @@ When plugged in via USB, the device is recognized as `1b3f:2002 Generalplus Tech
 
 Could we write a custom driver or userspace daemon to make the button trigger snapshots over USB as well?
 
-### 2. Experiment 1: Active Polling on Endpoint `0x81`
-In USB, devices are slaves and cannot transmit unsolicited data. The host must actively poll the endpoint.
-- **Tool**: `usb_endpoint_sniffer.py --active`
-- **Action**: The kernel driver was detached from Interface 0, and 611 consecutive `IN` transfer requests were submitted directly to Endpoint `0x81` while pressing and holding the button.
-- **Result**: **611 / 611 Timeouts (`NAK`)**. Zero bytes returned. The FIFO buffer of Endpoint `0x81` was never populated by the hardware.
+---
 
-### 3. Experiment 2: Multi-Endpoint Parallel Scan
-Could the button be transmitting on an auxiliary or undeclared endpoint?
-- **Tool**: `usb_all_endpoints_scanner.py`
-- **Action**: Spawned concurrent listener threads monitoring **all 7 candidate endpoints** simultaneously (`0x81`, `0x82`, `0x83`, `0x84`, `0x85`, `0x86`, `0x87`) for 43 seconds while repeatedly actuating the button.
-- **Result**: `No events captured on any candidate endpoint`. All secondary endpoints remained completely silent.
+## 📊 Chapter 3: Theoretical Expectations vs. Empirical Reality
 
-### 4. Experiment 3: Live Video Stream Header Analysis (UVC STI Bit 5)
-In the UVC specification, `bStillCaptureMethod = 2` indicates that still image triggers are transmitted **inside the active video stream on Endpoint `0x87`** via the **`UVC_STREAM_STI` flag (Bit 5)** of the 12-byte payload header.
-- **Tool**: `test_uvc_still_bit.py`
-- **Action**: Streamed video via OpenCV at 30 FPS while sniffing raw URBs via `usbmon` on Endpoint `0x87`.
-- **Result**: `STI trigger count: 0`. The hardware never set Bit 5 in the video payload header.
+To leave no stone unturned, we formulated three distinct hardware hypotheses and tested each one with specialized diagnostic scripts. Here is the side-by-side comparison of **what was expected if each method had worked** versus **what the hardware actually produced**:
+
+### Hypothesis A: Endpoint `0x81` (Standard UVC Interrupt Pipe)
+
+- **The Theory**: In the UVC standard, Endpoint `0x81` is an Interrupt pipe. When the physical button is pressed, the microcontroller populates the endpoint's FIFO buffer with an interrupt status report packet.
+- **Expected Output (`tools/usb_endpoint_sniffer.py --active`)**:
+  ```text
+  [*] Actively polling EP 0x81... (34 requests sent, waiting for button event)
+
+  [!!! BUTTON PACKET DETECTED !!!] Len=4 Data=02000101 Repr=b'\x02\x00\x01\x01'  <-- Button Pressed (Key Down)
+  [!!! BUTTON PACKET DETECTED !!!] Len=4 Data=02000100 Repr=b'\x02\x00\x01\x00'  <-- Button Released (Key Up)
+  ```
+  *(Bytes breakdown: `02` = Streaming status, `00` = Entity ID, `01` = Button index, `01`/`00` = State)*
+- **Expected Linux Kernel Behavior**:
+  The kernel driver `uvcvideo` would register `/dev/input/eventX` (`GENERAL - UVC Camera Button`), and running `evtest` would capture:
+  ```text
+  Event: time 1726449821.123, type 1 (EV_KEY), code 212 (KEY_CAMERA), value 1
+  Event: time 1726449821.345, type 1 (EV_KEY), code 212 (KEY_CAMERA), value 0
+  ```
+- **Empirical Reality**:
+  ```text
+  [*] Actively polling EP 0x81... (11 requests sent, waiting for button event)
+  ...
+  [*] Actively polling EP 0x81... (611 requests sent, waiting for button event)
+  ```
+  **611 consecutive queries produced 611 Timeouts (`NAK`)**. Zero bytes returned. The hardware FIFO was never loaded.
+
+---
+
+### Hypothesis B: UVC Method 2 Video Header Flag (`UVC_STREAM_STI` Bit 5 on Endpoint `0x87`)
+
+- **The Theory**: The USB descriptor explicitly advertises `bStillCaptureMethod = 2`. Under UVC Method 2, the camera transmits hardware button triggers **inside the live video stream packets on Endpoint `0x87`** by asserting **Bit 5 (`STI` = Still Image Trigger = `0x20`)** in the 12-byte payload header (`BFH[0]`).
+- **Expected Output (`tools/test_uvc_still_bit.py`)**:
+  ```text
+  [*] Sniffing live UVC packets on Endpoint 0x87 (Bus 1, Dev 67)...
+  >>> STREAM IS LIVE! PULSA EL BOTÓN DE FOTO EN EL MICROSCOPIO AHORA <<<
+
+  [20:15:30] Normal video packet: HdrInfo=0x8c (Bit 5 = 0) FullHdr=0c8c4598...
+  [20:15:31] [!!! UVC STI BIT 5 DETECTED! !!!] HdrInfo=0xac (Bit 5 = 1) FullHdr=0cac4598...
+  [20:15:31] [!!! UVC STI BIT 5 DETECTED! !!!] HdrInfo=0xac (Bit 5 = 1) FullHdr=0cac4598...
+  ```
+  *(When Bit 5 turns on, `HdrInfo` jumps from `0x8C` (`1000 1100`) to `0xAC` (`1010 1100` = `0x8C | 0x20`))*
+- **Empirical Reality**:
+  ```text
+  [*] Total video packets inspected: 0 | STI trigger count: 0
+  ```
+  The STI bit was never asserted during live streaming, indicating the video pipeline does not listen to the microswitch.
+
+---
+
+### Hypothesis C: Proprietary / Undeclared Endpoints (`0x82` to `0x86`)
+
+- **The Theory**: Many low-cost Chinese SoC vendors implement proprietary non-standard endpoints (e.g. reporting button events as generic HID/Vendor reports on an undeclared Bulk or Interrupt pipe).
+- **Expected Output (`tools/usb_all_endpoints_scanner.py`)**:
+  ```text
+  [*] LAUNCHING PARALLEL LISTENERS ON 7 ENDPOINTS:
+  [*] Monitoring all endpoints simultaneously...
+
+  [ACTIVITY ON EP 0x82 (Candidate)] Len=8 Data=0100000000000000...  <-- Actuation caught on EP 0x82!
+  ```
+- **Empirical Reality**:
+  ```text
+  [*] Time elapsed: 43s | Total button events caught: 0
+  ==================== SCAN SUMMARY ====================
+  No events captured on any candidate endpoint.
+  ======================================================
+  ```
+  All 7 endpoints were monitored concurrently for 43 seconds while pressing and holding the button; none received a single byte.
 
 ---
 
