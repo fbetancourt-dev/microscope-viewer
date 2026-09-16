@@ -156,12 +156,15 @@ When working with WiFi digital microscopes, your computer connects to the micros
 
 ---
 
-## 🛠️ Diagnostics & Diagnostic Tools
+## 🛠️ Diagnostics & Reverse Engineering Suite
 
-Diagnostic scripts are provided in the [`tools/`](tools/) folder for protocol verification and hardware troubleshooting:
+A dedicated diagnostic suite and forensic investigation chronicle is documented in the [**`tools/` directory**](tools/README.md):
 
-- **`tools/live_button_monitor.py`**: Real-time packet sniffer on UDP ports 20000 and 10900. Displays incoming telemetry bytes, header flags, and latency metrics.
-- **`tools/probe_button.py`**: Standalone headless listener for hardware button microswitch actuation.
+- **[Forensic Investigation Report](tools/README.md)**: The full technical chronicle documenting our empirical tests on Endpoint `0x81`, the multi-endpoint parallel scan, and the UVC STI Bit 5 video header inspection.
+- **`tools/live_button_monitor.py`**: Real-time packet sniffer on UDP ports 20000 and 10900.
+- **`tools/usb_endpoint_sniffer.py`**: Linux `usbmon` and active PyUSB polling tool for Endpoint `0x81`.
+- **`tools/usb_all_endpoints_scanner.py`**: Parallel listener querying candidate endpoints `0x81` through `0x87` simultaneously.
+- **`tools/test_uvc_still_bit.py`**: UVC live video stream packet inspector decoding the `UVC_STREAM_STI` flag.
 
 ---
 
