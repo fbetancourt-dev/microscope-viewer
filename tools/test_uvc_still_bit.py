@@ -10,6 +10,16 @@ import sys
 import time
 import subprocess
 import threading
+
+# If executed via sudo, include the invoking user's local Python packages
+sudo_user = os.environ.get("SUDO_USER")
+if sudo_user:
+    home_dir = os.path.expanduser(f"~{sudo_user}")
+    for pyver in ["python3.12", "python3.11", "python3.10"]:
+        pkg_path = os.path.join(home_dir, ".local/lib", pyver, "site-packages")
+        if os.path.exists(pkg_path) and pkg_path not in sys.path:
+            sys.path.insert(0, pkg_path)
+
 import cv2
 
 def find_device():
