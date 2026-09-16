@@ -11,6 +11,16 @@ import time
 import subprocess
 import argparse
 
+# If executed via sudo, include the invoking user's local Python packages
+sudo_user = os.environ.get("SUDO_USER")
+if sudo_user:
+    home_dir = os.path.expanduser(f"~{sudo_user}")
+    for pyver in ["python3.12", "python3.11", "python3.10"]:
+        pkg_path = os.path.join(home_dir, ".local/lib", pyver, "site-packages")
+        if os.path.exists(pkg_path) and pkg_path not in sys.path:
+            sys.path.insert(0, pkg_path)
+
+
 def find_microscope():
     """Finds bus and device address for Generalplus 1b3f:2002."""
     try:
