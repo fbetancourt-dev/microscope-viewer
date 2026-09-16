@@ -123,20 +123,28 @@ def run_pyusb_active_probe(bus: int, dev_addr: int):
         ep_addr = 0x81
         poll_count = 0
         t0 = time.time()
+        last_tick = time.time()
         
-        while time.time() - t0 < 15.0:
+        print("[*] Polling loop running. Press Ctrl+C to exit.\n", flush=True)
+        while True:
             poll_count += 1
+            now = time.time()
+            if now - last_tick >= 1.0:
+                print(f"[*] Actively polling EP 0x81... ({poll_count} requests sent, waiting for button event)", flush=True)
+                last_tick = now
             try:
                 # 100ms timeout
                 data = dev.read(ep_addr, 512, timeout=100)
                 if data:
                     hex_bytes = "".join([f"{b:02x}" for b in data])
-                    print(f"\033[92;1m[BUTTON PACKET DETECTED!]\033[0m Len={len(data)} Data={hex_bytes} Repr={bytes(data)!r}", flush=True)
+                    print(f"\n\033[92;1m[!!! BUTTON PACKET DETECTED !!!]\033[0m Len={len(data)} Data={hex_bytes} Repr={bytes(data)!r}\n", flush=True)
             except usb.core.USBTimeoutError:
                 pass
             except Exception as ex:
-                print(f"[!] Read error: {ex}")
+                print(f"\n[!] Read error: {ex}")
                 break
+    except KeyboardInterrupt:
+        print("\n[*] Polling stopped by user.")
 
     except Exception as e:
         print(f"[!] Error claiming or reading device: {e}")
