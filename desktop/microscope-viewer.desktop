@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Microscope Viewer Pro
+Comment=Ultra-Low Latency USB & WiFi Digital Microscope Viewer
+Exec=/home/fbetancourt/Gemini/microscope_viewer/run.sh
+Icon=camera-photo
+Terminal=false
+Type=Application
+Categories=Science;Engineering;Education;Graphics;
+Keywords=microscope;inspection;camera;joyhonest;uvc;v4l2;
