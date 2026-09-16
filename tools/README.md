@@ -143,6 +143,7 @@ In high-magnification microscopy (500×–1000×), pressing a physical button on
 
 | File | Purpose |
 | :--- | :--- |
+| **`wifi_button_sniffer.py`** | Non-blocking UDP packet analyzer detecting exact Joyhonest `JHCMD` short-click (`\x00\x01`) and long-click (`\x00\x02`) button events. |
 | **`live_button_monitor.py`** | Real-time diagnostic sniffer for JoyHonest WiFi telemetry (UDP 20000) and video headers (UDP 10900). |
 | **`probe_button.py`** | Standalone listener for WiFi snapshot packets on port 20000. |
 | **`usb_endpoint_sniffer.py`** | USB Request Block (URB) sniffer supporting passive `usbmon` and active PyUSB polling of Endpoint `0x81`. |

@@ -168,6 +168,30 @@ A dedicated diagnostic suite and forensic investigation chronicle is documented 
 
 ---
 
+## 📚 Hardware Hacking, Bootloader & Protocol Documentation
+
+Detailed reverse engineering guides, silicon architecture analyses, hardware pinouts, and network specifications are documented in the [**`docs/` directory**](docs/):
+
+1. **[Hardware Reverse Engineering & Silicon Architecture](docs/HARDWARE_REVERSE_ENGINEERING.md)**
+   - Complete block diagrams, component breakdown (Generalplus ARM SoC, 8× SMD LEDs, LiPo battery charging).
+   - Analysis of SPI NOR Flash layout and ARM vector table opcode leak (`ldr pc, [pc, #20]`).
+   - Deep dive into why the physical button does not trigger `/dev/input` over USB (`bmCapabilities 0x02: Still image unsupported`).
+2. **[Bootloader & Firmware Hacking Guide](docs/BOOTLOADER_AND_FIRMWARE_GUIDE.md)**
+   - Analysis of why WiFi OTA updates are not supported by the Joyhonest appliance model.
+   - **Method 1: Generalplus Mask ROM USB ISP Mode** (forcing bootloader via SPI `/CS` ground trigger).
+   - **Method 2: In-Circuit SPI Flash Dumping / Flashing** (CH341A, SOIC-8 clip, and `flashrom` step-by-step).
+   - **Method 3: Internal UART Serial Console** (test pads, 115200 8N1 baud, bootloader CLI access).
+3. **[JoyHonest JHCMD Protocol Specification](docs/PROTOCOL_SPECIFICATION.md)**
+   - Formal specification of the dual-port UDP protocol (UDP 20000 control, UDP 10900 RTP-like video).
+   - Complete packet binary format diagrams and handshake sequence.
+   - Exact hardware button codes: `b'JHCMD\x00\x01'` (Photo snapshot), `b'JHCMD\x00\x02'` (Video recording toggle), `b'JHCMD\x00\x00'` (Release).
+4. **Hardware Datasheets & Reference Pinouts:**
+   - **[Winbond W25Q16 / W25Q32 SPI NOR Flash Datasheet Summary](docs/datasheets/WINBOND_W25QXX_SPI_FLASH.md)**: SOIC-8 pinout, electrical specs, SPI instruction opcodes.
+   - **[CH341A USB Programmer Hardware Reference](docs/datasheets/CH341A_PROGRAMMER_PINOUT.md)**: 3.3V logic level fix, ZIF socket pinout, SOIC-8 clip wiring matrix.
+   - **[Generalplus GP/GPCV Multimedia SoC Reference](docs/datasheets/GENERALPLUS_SOC_REFERENCE.md)**: Architecture block diagram, boot phases, and ISP recovery mode.
+
+---
+
 ## 📄 License
 
 This project is licensed under the [MIT License](LICENSE) © 2026 Francisco Betancourt.

@@ -839,8 +839,15 @@ class MicroscopeMainWindow(QMainWindow):
         self.capture_thread.request_snapshot(self.save_directory)
 
     def _on_hardware_button_pressed(self, action: str):
-        self.viewport.trigger_shutter_flash()
-        self.status_bar.showMessage("📸 Disparo detectado desde botón físico del microscopio", 4000)
+        if action == "record_toggle":
+            self._toggle_recording()
+            if self.is_recording:
+                self.status_bar.showMessage("🔴 Grabación iniciada desde botón físico (click largo)", 4000)
+            else:
+                self.status_bar.showMessage("⏹ Grabación detenida desde botón físico (click largo)", 4000)
+        else:
+            self.viewport.trigger_shutter_flash()
+            self.status_bar.showMessage("📸 Foto capturada desde botón físico del microscopio", 4000)
 
     def _on_snapshot_saved(self, path: str):
         self.status_bar.showMessage(f"📸 Foto guardada en: {os.path.basename(path)}", 5000)

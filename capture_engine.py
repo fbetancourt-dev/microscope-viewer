@@ -213,15 +213,20 @@ class LowLatencyCaptureThread(QThread):
             # Poll status socket non-blocking for events
             try:
                 sdata, saddr = status_sock.recvfrom(512)
-                if sdata:
-                    # Ignore device identity broadcast (105 bytes)
-                    if not (len(sdata) == 105 and sdata.startswith(b"JHCMD \x00")):
-                        if now - self._last_button_time >= 0.35:
+                if sdata and sdata.startswith(b"JHCMD\x00"):
+                    cmd_code = sdata[6] if len(sdata) > 6 else 0
+                    if cmd_code == 1:  # Short click: Photo / Snapshot
+                        if now - self._last_button_time >= 0.30:
                             self._last_button_time = now
-                            print(f"[HW-BUTTON] Triggered from port 20000: len={len(sdata)} data={sdata[:16].hex()}", flush=True)
+                            print("[HW-BUTTON] Click corto detectado (JHCMD 0x01) -> Foto", flush=True)
                             self.hardware_button_pressed.emit("snapshot")
                             with QMutexLocker(self.mutex):
                                 self._snapshot_requested = True
+                    elif cmd_code == 2:  # Long click: Video Recording Toggle
+                        if now - self._last_button_time >= 0.50:
+                            self._last_button_time = now
+                            print("[HW-BUTTON] Click largo detectado (JHCMD 0x02) -> Video Toggle", flush=True)
+                            self.hardware_button_pressed.emit("record_toggle")
             except (BlockingIOError, TimeoutError):
                 pass
             except Exception:
