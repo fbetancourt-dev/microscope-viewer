@@ -111,18 +111,19 @@ def run_pyusb_active_probe(bus: int, dev_addr: int):
 
     print("[*] PyUSB found device 1b3f:2002.")
     
-    # Detach uvcvideo temporarily on VideoControl interface 0 if active
-    reattach_needed = False
-    try:
-        if dev.is_kernel_driver_active(0):
-            print("[*] Detaching kernel driver (uvcvideo) from Interface 0 to claim EP 0x81...")
-            dev.detach_kernel_driver(0)
-            reattach_needed = True
-    except Exception as e:
-        print(f"[*] Note on kernel driver: {e}")
+    # Detach kernel drivers (uvcvideo) on video interfaces to claim EP 0x81
+    detached_interfaces = []
+    for intf_num in [0, 1]:
+        try:
+            if dev.is_kernel_driver_active(intf_num):
+                print(f"[*] Detaching kernel driver from Interface {intf_num} to claim EP 0x81...")
+                dev.detach_kernel_driver(intf_num)
+                detached_interfaces.append(intf_num)
+        except Exception as e:
+            print(f"[*] Note on interface {intf_num}: {e}")
 
     try:
-        dev.set_configuration()
+        # Note: Do NOT call dev.set_configuration() as configuration is already active in kernel
         usb.util.claim_interface(dev, 0)
         print("[*] Successfully claimed Interface 0 (VideoControl)!")
         print("[*] Actively polling Endpoint 0x81 (Interrupt IN, max 512 bytes)...")
@@ -162,11 +163,14 @@ def run_pyusb_active_probe(bus: int, dev_addr: int):
     finally:
         try:
             usb.util.release_interface(dev, 0)
-            if reattach_needed:
-                print("[*] Reattaching uvcvideo kernel driver...")
-                dev.attach_kernel_driver(0)
         except Exception:
             pass
+        for intf_num in detached_interfaces:
+            try:
+                print(f"[*] Reattaching kernel driver to Interface {intf_num}...")
+                dev.attach_kernel_driver(intf_num)
+            except Exception:
+                pass
 
 def main():
     parser = argparse.ArgumentParser(description="USB Endpoint Sniffer for Generalplus Microscopes")
